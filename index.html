@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Training Management System - Phân Quyền Vai Trò</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Nhúng thư viện Supabase JS v2 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .active-tab {
+            background-color: #9333ea !important;
+            color: #ffffff !important;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .auth-screen {
+            display: none;
+        }
+        .auth-screen.active {
+            display: flex;
+        }
+        .role-menu {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans text-gray-900 h-screen overflow-hidden">
+
+    <!-- ================= 1. KHU VỰC ĐĂNG NHẬP / ĐĂNG KÝ ================= -->
+    <div id="auth-container" class="auth-screen active h-screen w-full items-center justify-center bg-gradient-to-tr from-purple-900 via-indigo-900 to-gray-900 p-4">
+        
+        <!-- Form Đăng Nhập -->
+        <div id="login-box" class="bg-white w-full max-w-md p-8 rounded-3xl shadow-2xl space-y-5">
+            <div class="text-center space-y-1">
+                <div class="w-12 h-12 bg-purple-600 rounded-2xl mx-auto flex items-center justify-center text-white text-xl font-bold shadow-lg">🎓</div>
+                <h2 class="text-2xl font-black text-gray-800">Đăng Nhập Hệ Thống</h2>
+                <p class="text-xs text-gray-500">Hệ thống Quản lý Đào tạo (QuanLyTT)</p>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Email đăng nhập</label>
+                    <input type="email" id="login-email" value="daotao@quanlytt.vn" class="w-full px-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Mật khẩu</label>
+                    <input type="password" value="123456" class="w-full px-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+                
+                <!-- Chọn vai trò để test phân quyền -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Chọn Quyền / Vai trò đăng nhập</label>
+                    <select id="login-role" class="w-full px-4 py-2.5 border rounded-xl text-sm bg-purple-50 text-purple-900 font-bold focus:outline-none">
+                        <option value="quan_tri">Quản trị (Admin - Xem tất cả)</option>
+                        <option value="dao_tao" selected>Đào tạo (Học viên, Lớp, Khóa, Ghi danh, Học phí)</option>
+                        <option value="ke_toan">Kế toán (Thống kê, Học phí)</option>
+                        <option value="giao_vien">Giáo viên (Học viên, Điểm danh)</option>
+                    </select>
+                </div>
+
+                <button type="button" onclick="handleLogin()" class="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-sm shadow-lg transition-all mt-2">
+                    Đăng Nhập
+                </button>
+            </div>
+
+            <div class="text-center text-xs text-gray-500 pt-1">
+                Chưa có tài khoản? 
+                <button type="button" onclick="switchAuth('register')" class="text-purple-600 font-bold hover:underline">Đăng ký</button>
+            </div>
+        </div>
+
+        <!-- Form Đăng Ký -->
+        <div id="register-box" class="bg-white w-full max-w-md p-8 rounded-3xl shadow-2xl space-y-4" style="display: none;">
+            <div class="text-center space-y-1">
+                <div class="w-12 h-12 bg-indigo-600 rounded-2xl mx-auto flex items-center justify-center text-white text-xl font-bold shadow-lg">📝</div>
+                <h2 class="text-2xl font-black text-gray-800">Đăng Ký Tài Khoản</h2>
+            </div>
+            <div class="space-y-3">
+                <input type="text" placeholder="Họ và tên" class="w-full px-4 py-2 border rounded-xl text-sm">
+                <input type="email" placeholder="Email" class="w-full px-4 py-2 border rounded-xl text-sm">
+                <input type="password" placeholder="Mật khẩu" class="w-full px-4 py-2 border rounded-xl text-sm">
+                <select class="w-full px-4 py-2 border rounded-xl text-sm bg-gray-50">
+                    <option value="dao_tao">Quyền Đào tạo</option>
+                    <option value="ke_toan">Quyền Kế toán</option>
+                    <option value="giao_vien">Quyền Giáo viên</option>
+                </select>
+                <button type="button" onclick="handleRegister()" class="w-full py-2.5 bg-indigo-600 text-white font-bold rounded-xl text-sm">Đăng Ký</button>
+            </div>
+            <div class="text-center text-xs text-gray-500">
+                Đã có tài khoản? <button type="button" onclick="switchAuth('login')" class="text-indigo-600 font-bold hover:underline">Đăng nhập</button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================= 2. KHU VỰC GIAO DIỆN QUẢN TRỊ ================= -->
+    <div id="app-container" class="flex h-screen w-full overflow-hidden" style="display: none;">
+        
+        <!-- SIDEBAR MENU BÊN TRÁI -->
+        <aside class="w-64 bg-[#111827] text-white flex flex-col justify-between shrink-0 select-none">
+            <div>
+                <!-- Logo -->
+                <div class="p-4 flex items-center gap-3 border-b border-gray-800">
+                    <div class="w-10 h-10 rounded-xl bg-purple-600 flex items-center justify-center font-bold text-xl">🎓</div>
+                    <div>
+                        <h1 class="font-bold text-base">QuanLyTT</h1>
+                        <p class="text-[10px] text-gray-400 font-semibold uppercase">Training Management</p>
+                    </div>
+                </div>
+
+                <!-- DANH SÁCH MENU ĐƯỢC PHÂN QUYỀN -->
+                <nav class="p-3 space-y-1" id="sidebar-menu">
+                    
+                    <a href="javascript:void(0)" onclick="openTab(event, 'dashboard')" class="nav-link role-menu role-quan_tri role-ke_toan active-tab flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-gray-800 hover:text-white text-sm font-medium">
+                        📊 <span>Thống kê (Dashboard)</span>
+                    </a>
+
+                    <a href="javascript:void(0)" onclick="openTab(event, 'khoahoc')" class="nav-link role-menu role-quan_tri role-dao_tao flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-gray-800 hover:text-white text-sm font-medium">
+                        📖 <span>Quản lý Khóa học</span>
+                    </a>
+
+                    <a href="javascript:void(0)" onclick="openTab(event, 'hocvien')" class="nav-link role-menu role-quan_tri role-dao_tao role-giao_vien flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-gray-800 hover:text-white text-sm font-medium">
+                        👥 <span>Quản lý Học viên</span>
+                    </a>
+
+                    <a href="javascript:void(0)" onclick="openTab(event, 'lophoc')" class="nav-link role-menu role-quan_tri role-dao_tao flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-gray-800 hover:text-white text-sm font-medium">
+                        🏫 <span>Quản lý Lớp học</span>
+                    </a>
+
+                    <a href="javascript:void(0)" onclick="openTab(event, 'ghidanh')" class="nav-link role-menu role-quan_tri role-dao_tao flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-gray-800 hover:text-white text-sm font-medium">
+                        📝 <span>Quản lý Ghi danh</span>
+                    </a>
+
+                    <a href="javascript:void(0)" onclick="openTab(event, 'hocphi')" class="nav-link role-menu role-quan_tri role-dao_tao role-ke_toan flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-gray-800 hover:text-white text-sm font-medium">
+                        💰 <span>Quản lý Học phí</span>
+                    </a>
+
+                    <a href="javascript:void(0)" onclick="openTab(event, 'diemdanh')" class="nav-link role-menu role-quan_tri role-giao_vien flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-gray-800 hover:text-white text-sm font-medium">
+                        📋 <span>Quản lý Điểm danh</span>
+                    </a>
+
+                </nav>
+            </div>
+
+            <!-- Profile & Logout -->
+            <div class="p-3 border-t border-gray-800 flex items-center justify-between">
+                <div>
+                    <p id="user-display-name" class="font-bold text-white text-xs">Tài khoản</p>
+                    <span id="user-role-badge" class="text-[10px] bg-purple-900 text-purple-200 px-1.5 py-0.5 rounded font-bold">Quyền</span>
+                </div>
+                <button type="button" onclick="handleLogout()" class="px-2.5 py-1 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white rounded-lg text-xs font-bold transition-all">
+                    Đăng xuất
+                </button>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main class="flex-1 flex flex-col h-screen overflow-y-auto bg-gray-50">
+            <header class="h-16 bg-white border-b px-6 flex items-center justify-between shrink-0 sticky top-0 z-10">
+                <h2 id="header-title" class="font-bold text-xl text-gray-800">Hệ Thống Quản Lý</h2>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-500 font-medium">Đổi nhanh quyền test:</span>
+                    <select onchange="applyRolePermissions(this.value)" id="quick-role-select" class="px-3 py-1 border rounded-lg text-xs font-bold bg-gray-100 text-purple-700">
+                        <option value="quan_tri">Quản trị (Tất cả)</option>
+                        <option value="dao_tao">Đào tạo</option>
+                        <option value="ke_toan">Kế toán</option>
+                        <option value="giao_vien">Giáo viên</option>
+                    </select>
+                </div>
+            </header>
+
+            <div class="p-6 max-w-[1400px] w-full mx-auto">
+                
+                <!-- 1. TAB DASHBOARD / THỐNG KÊ -->
+                <div id="dashboard" class="tab-content active space-y-6">
+                    <h3 class="font-bold text-lg text-gray-800">Báo cáo Thống kê Đào tạo & Tài chính</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="bg-white p-5 rounded-2xl border shadow-sm"><p class="text-xs font-bold text-gray-500">TỔNG KHÓA HỌC</p><p id="stat-khoa-hoc" class="text-2xl font-black">0</p></div>
+                        <div class="bg-white p-5 rounded-2xl border shadow-sm"><p class="text-xs font-bold text-gray-500">TỔNG HỌC VIÊN</p><p id="stat-hoc-vien" class="text-2xl font-black">0</p></div>
+                        <div class="bg-white p-5 rounded-2xl border shadow-sm"><p class="text-xs font-bold text-gray-500">TỔNG LỚP HỌC</p><p id="stat-lop-hoc" class="text-2xl font-black">0</p></div>
+                        <div class="bg-white p-5 rounded-2xl border shadow-sm"><p class="text-xs font-bold text-gray-500">DOANH THU HỌC PHÍ</p><p id="stat-doanh-thu" class="text-xl font-black text-emerald-600">0 VNĐ</p></div>
+                    </div>
+                </div>
+
+                <!-- 2. TAB KHÓA HỌC -->
+                <div id="khoahoc" class="tab-content space-y-4">
+                    <div class="bg-white p-4 rounded-2xl border flex justify-between items-center">
+                        <h3 class="font-bold text-lg text-purple-700">Form Quản lý Khóa học</h3>
+                        <button class="bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">+ Thêm Khóa học</button>
+                    </div>
+                    <div class="bg-white rounded-2xl border p-4">
+                        <table class="w-full text-left text-sm">
+                            <thead class="border-b bg-gray-50 text-xs font-bold text-gray-500">
+                                <tr><th class="p-3">MÃ KH</th><th class="p-3">TÊN KHÓA HỌC</th><th class="p-3">HỌC PHÍ</th><th class="p-3">THỜI LƯỢNG</th><th class="p-3">TRẠNG THÁI</th></tr>
+                            </thead>
+                            <tbody id="table-khoa-hoc-body">
+                                <!-- Dữ liệu từ Supabase đổ vào đây -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 3. TAB HỌC VIÊN -->
+                <div id="hocvien" class="tab-content space-y-4">
+                    <div class="bg-white p-4 rounded-2xl border flex justify-between items-center">
+                        <h3 class="font-bold text-lg text-purple-700">Form Quản lý Học viên</h3>
+                        <button class="bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">+ Thêm Học viên</button>
+                    </div>
+                    <div class="bg-white rounded-2xl border p-4">
+                        <table class="w-full text-left text-sm">
+                            <thead class="border-b bg-gray-50 text-xs font-bold text-gray-500">
+                                <tr><th class="p-3">MÃ HV</th><th class="p-3">HỌ TÊN</th><th class="p-3">ĐIỆN THOẠI</th><th class="p-3">EMAIL</th></tr>
+                            </thead>
+                            <tbody id="table-hoc-vien-body">
+                                <!-- Dữ liệu từ Supabase đổ vào đây -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 4. TAB LỚP HỌC -->
+                <div id="lophoc" class="tab-content space-y-4">
+                    <div class="bg-white p-4 rounded-2xl border flex justify-between items-center">
+                        <h3 class="font-bold text-lg text-purple-700">Form Quản lý Lớp học</h3>
+                        <button class="bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">+ Tạo Lớp học</button>
+                    </div>
+                    <div id="list-lop-hoc-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Dữ liệu từ Supabase đổ vào đây -->
+                    </div>
+                </div>
+
+                <!-- 5. TAB GHI DANH -->
+                <div id="ghidanh" class="tab-content space-y-4">
+                    <div class="bg-white p-4 rounded-2xl border flex justify-between items-center">
+                        <h3 class="font-bold text-lg text-purple-700">Form Quản lý Ghi danh</h3>
+                        <button class="bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">+ Đăng ký học viên vào lớp</button>
+                    </div>
+                    <div class="bg-white rounded-2xl border p-4">
+                        <table class="w-full text-left text-sm">
+                            <thead class="border-b bg-gray-50 text-xs font-bold text-gray-500">
+                                <tr><th class="p-3">MÃ GD</th><th class="p-3">MÃ HV</th><th class="p-3">MÃ LỚP</th><th class="p-3">TRẠNG THÁI</th></tr>
+                            </thead>
+                            <tbody id="table-ghi-danh-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 6. TAB HỌC PHÍ -->
+                <div id="hocphi" class="tab-content space-y-4">
+                    <div class="bg-white p-4 rounded-2xl border flex justify-between items-center">
+                        <h3 class="font-bold text-lg text-purple-700">Form Quản lý Học phí</h3>
+                        <button class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">+ Xác nhận đóng học phí</button>
+                    </div>
+                    <div class="bg-white rounded-2xl border p-4">
+                        <table class="w-full text-left text-sm">
+                            <thead class="border-b bg-gray-50 text-xs font-bold text-gray-500">
+                                <tr><th class="p-3">MÃ THU</th><th class="p-3">MÃ HỌC VIÊN</th><th class="p-3">SỐ TIỀN</th><th class="p-3">TRẠNG THÁI</th></tr>
+                            </thead>
+                            <tbody id="table-hoc-phi-body">
+                                <!-- Dữ liệu từ Supabase đổ vào đây -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 7. TAB ĐIỂM DANH -->
+                <div id="diemdanh" class="tab-content space-y-4">
+                    <div class="bg-white p-4 rounded-2xl border flex justify-between items-center">
+                        <h3 class="font-bold text-lg text-purple-700">Form Điểm danh Lớp học (Dành cho Giáo viên)</h3>
+                        <button class="bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">+ Điểm danh buổi mới</button>
+                    </div>
+                    <div class="bg-white rounded-2xl border p-4">
+                        <table class="w-full text-left text-sm">
+                            <thead class="border-b bg-gray-50 text-xs font-bold text-gray-500">
+                                <tr><th class="p-3">MÃ LỚP</th><th class="p-3">MÃ HỌC VIÊN</th><th class="p-3">NGÀY ĐIỂM DANH</th><th class="p-3">TRẠNG THÁI</th></tr>
+                            </thead>
+                            <tbody id="table-diem-danh-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- SCRIPT TÍCH HỢP SUPABASE VÀ XỬ LÝ DỮ LIỆU -->
+    <script>
+        // 1. Cấu hình kết nối Supabase
+        const SUPABASE_URL = 'https://ezlrnvyvbrcxvinsldon.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_KRP4t9aydLoeSImkGUzSgg_b56tDp27';
+
+        const { createClient } = supabase;
+        const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const roleLabels = {
+            'quan_tri': 'Quản Trị Viên',
+            'dao_tao': 'Quyền Đào Tạo',
+            'ke_toan': 'Quyền Kế Toán',
+            'giao_vien': 'Quyền Giáo Viên'
+        };
+
+        function switchAuth(type) {
+            document.getElementById('login-box').style.display = type === 'register' ? 'none' : 'block';
+            document.getElementById('register-box').style.display = type === 'register' ? 'block' : 'none';
+        }
+
+        async function handleLogin() {
+            const role = document.getElementById('login-role').value;
+            document.getElementById('auth-container').style.display = 'none';
+            document.getElementById('app-container').style.display = 'flex';
+            
+            applyRolePermissions(role);
+            
+            // Tải dữ liệu thật từ Supabase khi đăng nhập thành công
+            await fetchDataFromSupabase();
+        }
+
+        function applyRolePermissions(role) {
+            document.getElementById('user-role-badge').innerText = roleLabels[role] || role;
+            document.getElementById('user-display-name').innerText = roleLabels[role];
+            document.getElementById('quick-role-select').value = role;
+
+            const allMenus = document.querySelectorAll('.role-menu');
+            allMenus.forEach(m => m.style.display = 'none');
+
+            const allowedMenus = document.querySelectorAll('.role-' + role);
+            allowedMenus.forEach(m => m.style.display = 'flex');
+
+            if (allowedMenus.length > 0) {
+                allowedMenus[0].click();
+            }
+        }
+
+        function handleLogout() {
+            document.getElementById('app-container').style.display = 'none';
+            document.getElementById('auth-container').style.display = 'flex';
+        }
+
+        function openTab(evt, tabName) {
+            var tabContents = document.getElementsByClassName("tab-content");
+            for (var i = 0; i < tabContents.length; i++) {
+                tabContents[i].classList.remove("active");
+            }
+            var navLinks = document.getElementsByClassName("nav-link");
+            for (var i = 0; i < navLinks.length; i++) {
+                navLinks[i].classList.remove("active-tab");
+            }
+
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active-tab");
+
+            var titles = {
+                'dashboard': 'Báo Cáo Thống Kê System',
+                'khoahoc': 'Quản Lý Khóa Học (Đào tạo)',
+                'hocvien': 'Quản Lý Học Viên',
+                'lophoc': 'Quản Lý Lớp Học (Đào tạo)',
+                'ghidanh': 'Quản Lý Ghi Danh (Đào tạo)',
+                'hocphi': 'Quản Lý Học Phí (Kế toán / Đào tạo)',
+                'diemdanh': 'Quản Lý Điểm Danh (Giáo viên)'
+            };
+            document.getElementById("header-title").innerText = titles[tabName];
+        }
+
+        // 2. HÀM GỌI DỮ LIỆU TỪ SUPABASE ĐỔ VÀO GIAO DIỆN
+        async function fetchDataFromSupabase() {
+            try {
+                // Lấy Khóa học
+                let { data: khoaHoc, err1 } = await _supabase.from('khoa_hoc').select('*');
+                if (khoaHoc) {
+                    document.getElementById('stat-khoa-hoc').innerText = khoaHoc.length;
+                    let tbody = document.getElementById('table-khoa-hoc-body');
+                    tbody.innerHTML = '';
+                    khoaHoc.forEach(item => {
+                        tbody.innerHTML += `<tr class="border-b"><td class="p-3">${item.ma_kh}</td><td class="p-3 font-bold text-purple-700">${item.ten_khoa_hoc}</td><td class="p-3 font-bold text-emerald-600">${Number(item.hoc_phi).toLocaleString()} VNĐ</td><td class="p-3">${item.thoi_luong}</td><td class="p-3"><span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs">${item.trang_thai}</span></td></tr>`;
+                    });
+                }
+
+                // Lấy Học viên
+                let { data: hocVien, err2 } = await _supabase.from('hoc_vien').select('*');
+                if (hocVien) {
+                    document.getElementById('stat-hoc-vien').innerText = hocVien.length;
+                    let tbody = document.getElementById('table-hoc-vien-body');
+                    tbody.innerHTML = '';
+                    hocVien.forEach(item => {
+                        tbody.innerHTML += `<tr class="border-b"><td class="p-3">${item.ma_hv}</td><td class="p-3 font-bold">${item.ho_ten}</td><td class="p-3">${item.dien_thoai}</td><td class="p-3">${item.email}</td></tr>`;
+                    });
+                }
+
+                // Lấy Lớp học
+                let { data: lopHoc, err3 } = await _supabase.from('lop_hoc').select('*');
+                if (lopHoc) {
+                    document.getElementById('stat-lop-hoc').innerText = lopHoc.length;
+                    let container = document.getElementById('list-lop-hoc-container');
+                    container.innerHTML = '';
+                    lopHoc.forEach(item => {
+                        container.innerHTML += `<div class="bg-white p-5 border rounded-2xl shadow-sm"><h4 class="font-bold text-purple-700">${item.ten_lop} (${item.ma_lop})</h4><p class="text-xs text-gray-500 mt-1">Giáo viên: ${item.giao_vien} | Sĩ số tối đa: ${item.si_so}</p></div>`;
+                    });
+                }
+
+                // Lấy Ghi danh
+                let { data: ghiDanh, err4 } = await _supabase.from('ghi_danh').select('*');
+                if (ghiDanh) {
+                    let tbody = document.getElementById('table-ghi-danh-body');
+                    tbody.innerHTML = '';
+                    ghiDanh.forEach(item => {
+                        tbody.innerHTML += `<tr class="border-b"><td class="p-3">${item.ma_gd}</td><td class="p-3">${item.ma_hv}</td><td class="p-3">${item.ma_lop}</td><td class="p-3"><span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">${item.trang_thai}</span></td></tr>`;
+                    });
+                }
+
+                // Lấy Học phí & Tính tổng doanh thu
+                let { data: hocPhi, err5 } = await _supabase.from('hoc_phi').select('*');
+                if (hocPhi) {
+                    let totalRevenue = 0;
+                    let tbody = document.getElementById('table-hoc-phi-body');
+                    tbody.innerHTML = '';
+                    hocPhi.forEach(item => {
+                        if(item.trang_thai === 'Đã thanh toán') {
+                            totalRevenue += Number(item.so_tien);
+                        }
+                        tbody.innerHTML += `<tr class="border-b"><td class="p-3">${item.ma_thu}</td><td class="p-3 font-bold">${item.ma_hv}</td><td class="p-3 font-bold text-emerald-600">${Number(item.so_tien).toLocaleString()} VNĐ</td><td class="p-3"><span class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-bold">${item.trang_thai}</span></td></tr>`;
+                    });
+                    document.getElementById('stat-doanh-thu').innerText = totalRevenue.toLocaleString() + ' VNĐ';
+                }
+
+                // Lấy Điểm danh
+                let { data: diemDanh, err6 } = await _supabase.from('diemdanh').select('*');
+                if (diemDanh) {
+                    let tbody = document.getElementById('table-diem-danh-body');
+                    tbody.innerHTML = '';
+                    diemDanh.forEach(item => {
+                        let badgeColor = item.trang_thai === 'Có mặt' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+                        tbody.innerHTML += `<tr class="border-b"><td class="p-3">${item.ma_lop}</td><td class="p-3 font-bold">${item.ma_hv}</td><td class="p-3">${item.ngay_diem_danh}</td><td class="p-3"><span class="${badgeColor} px-2 py-1 rounded text-xs font-bold">${item.trang_thai}</span></td></tr>`;
+                    });
+                }
+
+            } catch (error) {
+                console.error('Lỗi kết nối hoặc truy vấn Supabase:', error);
+            }
+        }
+    </script>
+</body>
+</html>
